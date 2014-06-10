@@ -1,0 +1,6 @@
+create_thumbnails.pyc
+create_thumbnails/images/
+create_thumbnails/materials/
+create_thumbnails/tmp/
+thumbnails/
+project_*
