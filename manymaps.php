@@ -57,7 +57,7 @@ zip mp_cod5_zombie_v4
 			echo "EXEC DOES WORK";
 		}
 	}
-	//checkRequirements();
+	checkRequirements();
 	
 	function minishell($exec) {
 		echo "<pre>";
@@ -271,8 +271,12 @@ Error during initialization
 			
 			mylink("$project/$dir/maps/mp/$basename.d3dbsp", "$project/Library/$basename/maps/mp/$basename.d3dbsp");
 			$hasLoadscreen = linkMaterial("$project/$dir/materials/loadscreen_".strtolower($basename), "$project/Library/$basename/materials/loadscreen_".strtolower($basename), "$project/$dir", "$project/Library", $basename); // would like a class for this kinda..
-			if ($hasLoadscreen || 1) { // ups, this fails, because it sucks in impure old .iwd's...
+			if ($hasLoadscreen) {
 				@file_put_contents("$project/Library/$basename/maps/mp/$basename.csv", "levelBriefing,loadscreen_".strtolower($basename));
+				@file_put_contents("$project/Library/empty/maps/mp/$basename.csv", ""); // just for empty.iwd
+			} else {
+				// use some standard shader, otherwise it sucks in impure old .iwd's...
+				@file_put_contents("$project/Library/$basename/maps/mp/$basename.csv", "levelBriefing,black");
 				@file_put_contents("$project/Library/empty/maps/mp/$basename.csv", ""); // just for empty.iwd
 			}
 			mylink("$project/$dir/mp/$basename.arena", "$project/Library/$basename/mp/$basename.arena"); // TODO feature: write "gametype" by available spawns etc. and check general syntax
@@ -358,7 +362,7 @@ Error during initialization
 
 		$library = "Library";
 
-		$GLOBALS["wwwBaseURL"] = "http://dbg.killtube.org/~kung/manymaps";
+		$GLOBALS["wwwBaseURL"] = "http://killtube.org/~manymaps/manymaps";
 		
 		
 		initStockfiles("cod2_1_2.txt");
@@ -366,7 +370,7 @@ Error during initialization
 		foreach ($projects as $project) {
 			echo "Project: $project <br>";
 			
-			if ($project != "project_ns_maps_2")
+			if ($project != "project_ns_maps_3")
 				continue;
 				
 			if ($GLOBALS["doCleanLibrary"])
