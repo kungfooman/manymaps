@@ -124,16 +124,16 @@ zip mp_cod5_zombie_v4
 	}
 
 	function getMaterialsOfBsp($filename) {
-		$cmd = "luajit -l cod2info -e 'bsp(\"$filename\");listMaterials()'";
-		//echo "$cmd<br>";
+		$cmd = "./luajit -l cod2info -e 'bsp(\"$filename\");listMaterials()'";
+		echo "$cmd<br>";
 		$materials = array(); // clean array, its a reference
 		exec($cmd, $materials);
 		return $materials;
 	}
 
 	function getImagesForMaterial($filename) {
-		$cmd = "luajit -l cod2info -e 'getImagesOfMaterial(\"$filename\");'";
-		//echo "Check $cmd";
+		$cmd = "./luajit -l cod2info -e 'getImagesOfMaterial(\"$filename\");'";
+		echo "$cmd";
 		//system($cmd);
 		$images = array(); // clean array, its a reference
 		exec($cmd, $images);
