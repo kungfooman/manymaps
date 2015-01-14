@@ -324,10 +324,19 @@ Error during initialization
 	
 	function handleArchive($project, $dir, $doZip) {
 		$maps = glob("$project/$dir/maps/mp/*.d3dbsp");
+		
 		foreach ($maps as $map)
 		{
 			$basename = basename($map, ".d3dbsp");
 			echo "<div class=map>Map: <b>$map</b> Dir: $dir</div>";
+			$GLOBALS["allMaps"][] = $basename;
+			
+			if ( ! useMap($basename)) {
+				$GLOBALS["ignoredMaps"][] = $basename;
+				echo "<div>Ingore non-whitelist map: $basename</div>";
+				continue;
+			}
+			
 			echo "<div class=intend>";
 
 			$models = getModelsOfBsp("$project/$dir/maps/mp/$basename.d3dbsp");
@@ -525,6 +534,27 @@ Error during initialization
 				zipEmptyIWD($project);
 			printDownloadLinksOfEachMap($project);
 		}
+		
+		
+		echo "<div class=stats>Statistics:";
+		echo "<ul>";
+		$count_old = count($GLOBALS["allMaps"]);
+		$count_new = count(array_flip(array_flip($GLOBALS["allMaps"]))); // remove double items
+		$numDoubleMaps = $count_old - $count_new;
+		$num = count(array_flip(array_flip($GLOBALS["allMaps"])));
+		echo "<li>All maps (distinct count=" . ($num-$numDoubleMaps) . " doubleMaps=$numDoubleMaps): " . implode(", ", $GLOBALS["allMaps"]);
+		echo "<li>Ignored maps (count=" . count($GLOBALS["ignoredMaps"]) . "): " . implode(", ", $GLOBALS["ignoredMaps"]);
+		
+		$white = array_flip($GLOBALS["config_whitelist"]);
+		echo "<li>Whitelisted maps (count=" . count($white) . "): " . implode(", ", $white);
+
+		// get maps which are in whitelist, but actually not found in project
+		$intersect = array_intersect($GLOBALS["allMaps"], $white);
+		$missing = array_diff($white, $intersect); // actually "a without b", not diff
+		echo "<li>Missing maps from whitelist (count=" . count($missing) . "): " . implode(", ", $missing);
+		
+		echo "</ul>";
+		echo "</div>";
 		
 
 		
