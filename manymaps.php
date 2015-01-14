@@ -50,6 +50,8 @@ zip mp_cod5_zombie_v4
 </form>
 
 <?php
+	include("config.php");
+
 	function checkRequirements() {
 		if (exec("echo TEST") != "TEST") {
 			echo "<div class=fail>EXEC DOES NOT WORK!</div>";
@@ -103,6 +105,7 @@ zip mp_cod5_zombie_v4
 	}
 	function isStockfile($filename)
 	{
+		$filename = str_replace("\\", "/", $filename); // e.g. for maps\mp\_load::main();
 		return isset($GLOBALS["stockfiles"][$filename]);
 	}
 	
@@ -144,7 +147,7 @@ zip mp_cod5_zombie_v4
 	// returns true when the link was already in place or got created
 	function mylink($from, $to, $info="no info :(") {
 		if ($GLOBALS["debugLink"])
-			echo "<div class=link>LINK FROM=$from TO=$to</div>";
+			echo "<div class=link>LINK FROM=$from TO=$to INFO=$info</div>";
 
 		// create empty files automatically for each linked file.
 		// this also prevents that other impure .iwd's become loaded (e.g. they have a loadscreen and you dont)
@@ -158,13 +161,23 @@ zip mp_cod5_zombie_v4
 		@mkdir(dirname($emptyFile), 0777, true);
 		file_put_contents($emptyFile, "");
 
-		echo "FROM:$from<br>";
-		echo "project:$project<br>";
-		echo "mapname:$mapname<br>";
-		echo "fromWithoutMapname:$fromWithoutMapname<br>";
+		// echo "FROM:$from<br>";
+		// echo "project:$project<br>";
+		// echo "mapname:$mapname<br>";
+		// echo "fromWithoutMapname:$fromWithoutMapname<br>";
+		// =====
+		// FROM:project_ns_maps_3/mp_city/materials/loadscreen_mp_city
+		// project:project_ns_maps_3
+		// mapname:mp_city
+		// fromWithoutMapname:materials/loadscreen_mp_city
+
+		if (isStockfile($fromWithoutMapname)) {
+			echo "<div class=link>IGNORE LINK BECAUSE IS STOCKFILE: $fromWithoutMapname</div>";
+			return true;
+		}
+		
 		// easy switcher: bool * preferSome
 		$prefer = "missing";
-		
 		if ($prefer == "missing") {
 			$newFrom = "$project/missing/$fromWithoutMapname";
 			if (file_exists($newFrom)) {
@@ -246,13 +259,75 @@ Error during initialization
 		}
 		return true;
 	}
+	function csv_to_assoc($filename) {
+		$rows = file($filename);
+		$keys = str_getcsv(array_shift($rows));
+		$tmp = array();
+		foreach ($rows as $row) {
+			$data = str_getcsv($row);
+			if (trim($row)=="")
+				continue;
+			if (count($data) != count($keys))
+				echo "<div class=fail>ERROR in csv_to_assoc! row=$row cols=".count($data)." cols needed=" . count($keys) . " </div>";
+			$tmp[] = array_combine($keys, $data);
+		}
+		return $tmp;
+	}
+	function getFxOfGsc($filename) {
+		$content = file_get_contents($filename);
+		$matches = array();
+		preg_match_all('/loadfx\s*\((.*)\)/', $content, $matches);
+		//print_r($matches[1]);
+		$matches[1] = array_map(trim, $matches[1]);
+		return $matches[1];
+	}
+	function getSoundaliasesOfGsc($filename) {
+		$content = file_get_contents($filename);
+		$matches = array();
+		preg_match_all('/ambientPlay\s*\((.*)\)/', $content, $matches);
+		//print_r($matches[1]);
+		foreach ($matches[1] as &$match) {
+			// turn "test" into test
+			$match = substr($match, 1, -1);
+			$match = trim($match);
+		}
+		return $matches[1];
+	}
+	function getGscOfGsc_($project_and_dir, $filename) {
+		$content = file_get_contents($project_and_dir . $filename);
+		$matches = array();
+		preg_match_all('/(.*)::(.*)/', $content, $matches);
+		foreach ($matches[1] as &$match) {
+			$match = str_replace("\\", "/", $match);
+			$match = trim($match) . ".gsc";
+		}
+		return $matches[1];
+	}
+	
+	function getGscOfGsc($project_and_dir, $filename, &$all) {
+		//echo "<br>getGscOfGsc: $filename";
+		
+		$all[$filename] = 1; // add myself
+		$gscs = getGscOfGsc_($project_and_dir, $filename);
+		foreach ($gscs as $gsc) {
+			if ( ! isset($all[$gsc])) {
+				$all = array_merge($all, getGscOfGsc($project_and_dir, $gsc, $all));
+			} else {
+			
+				//echo "<br>exists already in all: $gsc";
+			}
+			$all[$gsc] = true;
+			
+		}
+		return $all;
+	}
 	
 	function handleArchive($project, $dir, $doZip) {
 		$maps = glob("$project/$dir/maps/mp/*.d3dbsp");
 		foreach ($maps as $map)
 		{
 			$basename = basename($map, ".d3dbsp");
-			echo "<div class=map>Map: <b>$map</b></div>";
+			echo "<div class=map>Map: <b>$map</b> Dir: $dir</div>";
 			echo "<div class=intend>";
 
 			$models = getModelsOfBsp("$project/$dir/maps/mp/$basename.d3dbsp");
@@ -295,6 +370,61 @@ Error during initialization
 				linkMaterial("$project/$dir/materials/$material", "$project/Library/$basename/materials/$material", "$project/$dir", "$project/Library", $basename);
 			}
 
+
+			$all = array();
+			$gscs = getGscOfGsc("$project/$dir/", "maps/mp/$basename.gsc", $all);
+			$neededSoundaliases = array();
+			foreach ($gscs as $gsc=>$one) {
+				$isStock = isStockfile($gsc);
+				echo "<br>GSC: $gsc stockfile=" . ($isStock ? "yes" : "no");
+				
+				$fxs = getFxOfGsc("$project/$dir/$gsc");
+				foreach ($fxs as $fx) {
+					// turn "test" into test
+					$fx = substr($fx, 1, -1);
+					$isStock = isStockfile($fx);
+					echo "<br>FX: $fx stockfile=" . ($isStock ? "yes" : "no");
+					if ( ! $isStock)
+						mylink("$project/$dir/$fx", "$project/Library/$dir/$fx", "FX from gsc/loadfx");
+				}
+				$soundaliases = getSoundaliasesOfGsc("$project/$dir/$gsc");
+				foreach ($soundaliases as $soundalias) {
+					$isStock = isStockfile($soundalias);
+					echo "<br>Sound: $soundalias stockfile=" . ($isStock ? "yes" : "no");
+					$neededSoundaliases[$soundalias] = true; // true = still needed
+				}
+				
+			}
+			
+			
+			//$soundaliases_csv = glob("$project/$dir/soundaliases/$basename.csv");
+			$soundaliases_csv = glob("$project/$dir/soundaliases/*.csv");
+			echo "<div>count(\$soundaliases_csv)=" . count($soundaliases_csv) . "</div>";
+			foreach ($soundaliases_csv as $soundalias_csv) {
+				echo "<div>CSV=$soundalias_csv</div>";
+				$rows = csv_to_assoc($soundalias_csv);
+				foreach ($rows as $row) {
+					echo "<div>{$row["name"]}</div>";
+					if (trim($row["file"]) == "")
+						continue;
+					if ( ! isset($neededSoundaliases[$row["name"]]))
+						continue;
+					$filename = "sound/" . $row["file"];
+					echo "<br>{$row["name"]} filename=$filename stockfile=" . (isStockfile($filename) ? "yes" : "no");
+					$link = mylink("$project/$dir/$filename", "$project/Library/$dir/$filename", "sound-file from .csv");
+					echo "" . ($link ? "link success" : "link failed!");
+					if ($link)
+						$neededSoundaliases[$row["name"]] = false; // false = got linked :)
+				}
+			}
+			echo "<pre>";
+			print_r($neededSoundaliases);
+			echo "</pre>";
+			foreach ($neededSoundaliases as $neededSoundalias=>$needed)
+				if ($needed)
+					echo "<div class=fail>Missing soundalias! name=$neededSoundalias</div>";
+			
+			
 			if ($doZip)
 			{
 				echo "<pre>";
@@ -355,8 +485,8 @@ Error during initialization
 	function main() {
 		$GLOBALS["debugLink"] = 1;
 	
-		$GLOBALS["doZipArchives"] = 1;
-		$GLOBALS["doZipEmpty"] = 1;
+		$GLOBALS["doZipArchives"] = 0;
+		$GLOBALS["doZipEmpty"] = 0;
 		$GLOBALS["doCleanLibrary"] = 1;
 		
 
@@ -370,7 +500,7 @@ Error during initialization
 		foreach ($projects as $project) {
 			echo "Project: $project <br>";
 			
-			if ($project != "project_ns_maps_3")
+			if ( ! useProject($project))
 				continue;
 				
 			if ($GLOBALS["doCleanLibrary"])
